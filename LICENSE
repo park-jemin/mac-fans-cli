@@ -1,0 +1,8 @@
+GPL-2.0
+
+This project contains SMC access code based on smcFanControl by devnull and
+Hendrik Holtmann. That code is GPL-licensed, so this project is distributed
+under GPL-2.0.
+
+For the full license text, see:
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
