@@ -83,6 +83,15 @@ fans auto-all
 fans auto 0
 ```
 
+Sleep, wake, and reboot:
+
+`make install` registers two helpers:
+
+- **Wake** (`StartOnWake`): re-applies the last `set-all` RPM after sleep.
+- **Boot** (`RunAtLoad`): after shutdown/reboot, returns fans to automatic if the boot session changed. Re-login without reboot does nothing. Your saved RPM stays in `~/.config/mac-fans-cli/state` for the next sleep.
+
+`fans auto-all` clears saved state.
+
 Read raw SMC keys:
 
 ```bash

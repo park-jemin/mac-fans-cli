@@ -287,7 +287,7 @@ static kern_return_t set_fan_test_mode(int enabled, io_connect_t conn)
     return result;
 }
 
-static kern_return_t write_force_bits(int fan_count, int enabled, io_connect_t conn)
+static kern_return_t write_force_bits_value(uint16_t bits, io_connect_t conn)
 {
     SMCVal_t val;
     kern_return_t result = SMCReadKey("FS! ", &val, conn);
@@ -295,7 +295,6 @@ static kern_return_t write_force_bits(int fan_count, int enabled, io_connect_t c
         return kIOReturnSuccess;
     }
 
-    uint16_t bits = enabled ? fans_force_bits(fan_count) : 0;
     val.bytes[0] = (bits >> 8) & 0xFF;
     val.bytes[1] = bits & 0xFF;
     sprintf(val.key, "%s", "FS! ");
@@ -306,6 +305,12 @@ static kern_return_t write_force_bits(int fan_count, int enabled, io_connect_t c
     }
 
     return result;
+}
+
+static kern_return_t write_force_bits(int fan_count, int enabled, io_connect_t conn)
+{
+    uint16_t bits = enabled ? fans_force_bits(fan_count) : 0;
+    return write_force_bits_value(bits, conn);
 }
 
 static kern_return_t set_fan_mode(int fan_num, int mode, io_connect_t conn)
@@ -330,7 +335,7 @@ static kern_return_t set_fan_mode(int fan_num, int mode, io_connect_t conn)
     return result;
 }
 
-kern_return_t fans_set_speed(int fan_num, int rpm, io_connect_t conn)
+static kern_return_t fans_set_speed_internal(int fan_num, int rpm, io_connect_t conn, int quiet)
 {
     SMCVal_t val;
     char key[5];
@@ -346,7 +351,9 @@ kern_return_t fans_set_speed(int fan_num, int rpm, io_connect_t conn)
     }
     kern_return_t result = SMCReadKey(key, &val, conn);
     if (result != kIOReturnSuccess) {
-        fprintf(stderr, "Error: cannot read %s\n", key);
+        if (!quiet) {
+            fprintf(stderr, "Error: cannot read %s\n", key);
+        }
         return result;
     }
 
@@ -356,7 +363,9 @@ kern_return_t fans_set_speed(int fan_num, int rpm, io_connect_t conn)
     } else if (strcmp(val.dataType, DATATYPE_FPE2) == 0 && val.dataSize == 2) {
         fans_encode_fpe2_rpm(rpm, val.bytes);
     } else {
-        fprintf(stderr, "Error: unknown type %s for %s\n", val.dataType, key);
+        if (!quiet) {
+            fprintf(stderr, "Error: unknown type %s for %s\n", val.dataType, key);
+        }
         return kIOReturnError;
     }
 
@@ -370,6 +379,11 @@ kern_return_t fans_set_speed(int fan_num, int rpm, io_connect_t conn)
     }
 
     return result;
+}
+
+kern_return_t fans_set_speed(int fan_num, int rpm, io_connect_t conn)
+{
+    return fans_set_speed_internal(fan_num, rpm, conn, 0);
 }
 
 static int fan_target_matches(int fan_num, int rpm, io_connect_t conn)
@@ -457,7 +471,60 @@ int fans_set_all(int rpm, io_connect_t conn)
     }
 
     printf("Success: all detected fans requested at %d RPM\n", rpm);
+    if (fans_saved_store_rpm(rpm) != 0) {
+        fprintf(stderr, "Warning: could not save fan setting for wake restore\n");
+    }
     return 0;
+}
+
+int fans_restore_quiet(int rpm, io_connect_t conn)
+{
+    int fan_count = fans_detect_count(conn);
+    int failed = 0;
+
+    if (fan_count <= 0) {
+        return 1;
+    }
+
+    if (!fans_validate_rpm(rpm)) {
+        return 1;
+    }
+
+    set_fan_test_mode(1, conn);
+    write_force_bits(fan_count, 1, conn);
+
+    for (int i = 0; i < fan_count; i++) {
+        if (fan_target_matches(i, rpm, conn)) {
+            continue;
+        }
+
+        if (fans_set_speed_internal(i, rpm, conn, 1) != kIOReturnSuccess) {
+            failed = 1;
+        }
+    }
+
+    return failed ? 1 : 0;
+}
+
+int fans_set_all_auto_quiet(io_connect_t conn)
+{
+    int fan_count = fans_detect_count(conn);
+    int failed = 0;
+
+    if (fan_count <= 0) {
+        return 1;
+    }
+
+    write_force_bits(fan_count, 0, conn);
+
+    for (int i = 0; i < fan_count; i++) {
+        if (fans_set_auto(i, conn) != kIOReturnSuccess) {
+            failed = 1;
+        }
+    }
+
+    set_fan_test_mode(0, conn);
+    return failed ? 1 : 0;
 }
 
 int fans_set_all_auto(io_connect_t conn)
@@ -469,20 +536,21 @@ int fans_set_all_auto(io_connect_t conn)
     }
 
     printf("Restoring automatic mode for %d fan(s)...\n", fan_count);
-    write_force_bits(fan_count, 0, conn);
 
-    int failed = 0;
-    for (int i = 0; i < fan_count; i++) {
-        kern_return_t result = fans_set_auto(i, conn);
-        if (result == kIOReturnSuccess) {
+    int failed = fans_set_all_auto_quiet(conn);
+    if (!failed) {
+        for (int i = 0; i < fan_count; i++) {
             printf("Fan %d: automatic mode\n", i);
-        } else {
-            fprintf(stderr, "Error: failed to restore fan %d: %08x\n", i, result);
-            failed = 1;
+        }
+    } else {
+        for (int i = 0; i < fan_count; i++) {
+            fprintf(stderr, "Error: failed to restore fan %d to automatic mode\n", i);
         }
     }
 
-    set_fan_test_mode(0, conn);
+    if (!failed && fans_saved_store_auto() != 0) {
+        fprintf(stderr, "Warning: could not clear saved fan setting\n");
+    }
     return failed ? 1 : 0;
 }
 
@@ -548,6 +616,7 @@ void fans_usage(const char *prog)
     printf("  %s auto-all                 Restore automatic mode for all fans\n", prog);
     printf("  %s auto <FAN#>              Restore automatic mode for one fan\n", prog);
     printf("  %s read <KEY>               Read a raw SMC key\n", prog);
+    printf("\nForced RPM from set-all is saved and re-applied after sleep (via make install).\n");
     printf("\nExamples:\n");
     printf("  %s 3500\n", prog);
     printf("  %s info\n", prog);

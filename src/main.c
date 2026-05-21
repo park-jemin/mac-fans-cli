@@ -43,6 +43,21 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    if (strcmp(cmd, "restore") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "Error: restore requires wake or boot\n");
+            return 1;
+        }
+        if (strcmp(argv[2], "wake") == 0) {
+            return fans_run_restore_wake();
+        }
+        if (strcmp(argv[2], "boot") == 0) {
+            return fans_run_restore_boot();
+        }
+        fprintf(stderr, "Error: restore must be wake or boot\n");
+        return 1;
+    }
+
     if (open_or_fail(&conn) != 0) {
         return 1;
     }
