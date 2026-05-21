@@ -14,9 +14,12 @@ int fans_read_key_command(const char *key_name, io_connect_t conn);
 int fans_saved_store_rpm(int rpm);
 int fans_saved_store_auto(void);
 int fans_restore_quiet(int rpm, io_connect_t conn);
+int fans_all_targets_match(int rpm, io_connect_t conn);
 int fans_set_all_auto_quiet(io_connect_t conn);
-int fans_run_restore_wake(void);
-int fans_run_restore_boot(void);
+int fans_run_restore(void);
+int fans_run_restore_launchd(void); /* login + wake launch agent entry */
+int fans_run_restore_on_wake_forced(void);
+int fans_run_restore_boot_session(void);
 void fans_usage(const char *prog);
 
 #endif

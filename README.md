@@ -35,10 +35,12 @@ sudo -v
 Then install:
 
 ```bash
-make install
+sudo make install
 ```
 
-By default this installs `fans` to `/usr/local/bin/fans` with owner `root:wheel` and mode `4755`, then verifies the installed binary with `fans info`.
+Install copies the setuid binary and registers the wake helper. Verification runs as your user (not root) so it does not block install if SMC briefly rejects the check.
+
+By default this installs `fans` to `/usr/local/bin/fans` with owner `root:wheel` and mode `4755`, registers the wake helper, then optionally runs `fans info` as your user.
 
 Security note: `make install` installs `fans` as a setuid-root binary so non-root users can perform SMC writes. Only install binaries you built from trusted source, and remove the setuid binary with `make uninstall` if you no longer need it.
 
@@ -85,12 +87,7 @@ fans auto 0
 
 Sleep, wake, and reboot:
 
-`make install` registers two helpers:
-
-- **Wake** (`StartOnWake`): re-applies the last `set-all` RPM after sleep.
-- **Boot** (`RunAtLoad`): after shutdown/reboot, returns fans to automatic if the boot session changed. Re-login without reboot does nothing. Your saved RPM stays in `~/.config/mac-fans-cli/state` for the next sleep.
-
-`fans auto-all` clears saved state.
+`make install` registers one login item that runs `fans restore` at login and after each wake. On wake it waits for SMC, then re-applies your saved RPM several times over ~2 minutes (macOS often rejects the first write right after wake). Shutdown/reboot returns fans to automatic. State: `~/.config/mac-fans-cli/state`. Wake logs: `~/.config/mac-fans-cli/restore.log`. Manual restore: `fans restore wake`.
 
 Read raw SMC keys:
 

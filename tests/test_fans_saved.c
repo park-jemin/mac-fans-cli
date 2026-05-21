@@ -99,6 +99,20 @@ static void test_boot_changed(void)
     assert(!fans_saved_boot_changed(&saved, 100, 200));
 }
 
+static void test_parse_skip_wake(void)
+{
+    fans_saved_t saved = {.rpm = 3500};
+
+    assert(fans_saved_parse_skip_wake_line("skip_wake=1", &saved));
+    assert(saved.skip_wake_until == 1);
+    assert(fans_saved_parse_skip_wake_line("skip_wake_until=9999999999", &saved));
+    assert(saved.skip_wake_until == 9999999999);
+    assert(fans_saved_should_skip_wake(&saved, 100));
+    assert(!fans_saved_should_skip_wake(&saved, 10000000000L));
+    assert(!fans_saved_parse_skip_wake_line("skip_wake=0", &saved));
+    assert(!fans_saved_parse_skip_wake_line("boot 1 2", &saved));
+}
+
 static void test_boot_action(void)
 {
     fans_saved_t saved = {
@@ -145,6 +159,7 @@ int main(void)
     test_format_invalid();
     test_parse_boot_line();
     test_boot_changed();
+    test_parse_skip_wake();
     test_boot_action();
     test_format_boot_line();
 

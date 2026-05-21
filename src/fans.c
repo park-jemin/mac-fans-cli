@@ -401,6 +401,23 @@ static int fan_target_matches(int fan_num, int rpm, io_connect_t conn)
     return fans_target_matches(smc_value_to_float(val), rpm);
 }
 
+int fans_all_targets_match(int rpm, io_connect_t conn)
+{
+    int fan_count = fans_detect_count(conn);
+
+    if (fan_count <= 0 || !fans_validate_rpm(rpm)) {
+        return 0;
+    }
+
+    for (int i = 0; i < fan_count; i++) {
+        if (!fan_target_matches(i, rpm, conn)) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 kern_return_t fans_set_auto(int fan_num, io_connect_t conn)
 {
     return set_fan_mode(fan_num, 0, conn);

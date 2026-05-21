@@ -11,9 +11,9 @@ TARGET := $(BUILD_DIR)/fans
 TEST_TARGET := $(BUILD_DIR)/test_fans_logic
 SAVED_TEST_TARGET := $(BUILD_DIR)/test_fans_saved
 SMC_TEST_TARGET := $(BUILD_DIR)/test_smc_format
-AGENT_WAKE_LABEL := com.mac-fans-cli.wake
-AGENT_BOOT_LABEL := com.mac-fans-cli.boot
-LEGACY_AGENT_LABEL := com.mac-fans-cli.fans
+AGENT_LABEL := com.mac-fans-cli.fans
+LEGACY_WAKE_LABEL := com.mac-fans-cli.wake
+LEGACY_BOOT_LABEL := com.mac-fans-cli.boot
 
 CPPFLAGS := -Iinclude
 CFLAGS ?= -Wall -Wextra -Werror -O2
@@ -24,7 +24,7 @@ TEST_SRC := tests/test_fans_logic.c src/fans_logic.c
 SAVED_TEST_SRC := tests/test_fans_saved.c src/fans_logic.c
 SMC_TEST_SRC := tests/test_smc_format.c src/fans.c src/fans_logic.c src/fans_saved.c
 
-.PHONY: all clean test install install-wake-agent uninstall sudo-refresh hardware-test info auto-all
+.PHONY: all clean test install install-verify install-wake-agent uninstall sudo-refresh hardware-test info auto-all
 
 all: $(TARGET)
 
@@ -56,47 +56,51 @@ install: $(TARGET)
 	$(SUDO) cp $(TARGET) $(BINDIR)/fans
 	$(SUDO) chown root:wheel $(BINDIR)/fans
 	$(SUDO) chmod 4755 $(BINDIR)/fans
-	$(BINDIR)/fans info
 	@$(MAKE) install-wake-agent FANS_BIN=$(BINDIR)/fans
+	@$(MAKE) install-verify FANS_BIN=$(BINDIR)/fans
 
-define INSTALL_LAUNCH_AGENT
+install-verify:
+	@u="$$SUDO_USER"; \
+	if [ -z "$$u" ] || [ "$$u" = "root" ]; then u="$$USER"; fi; \
+	echo "Verifying $(FANS_BIN) as $$u..."; \
+	$(SUDO) -u "$$u" $(FANS_BIN) info || \
+		echo "Warning: fans info verify failed; install finished anyway."
+
+install-wake-agent:
 	@u="$$SUDO_USER"; \
 	if [ -z "$$u" ] || [ "$$u" = "root" ]; then u="$$USER"; fi; \
 	h=$$(eval echo ~$$u); \
 	uid=$$(id -u $$u); \
-	agent="$$h/Library/LaunchAgents/$(1).plist"; \
+	agent="$$h/Library/LaunchAgents/$(AGENT_LABEL).plist"; \
 	mkdir -p "$$h/Library/LaunchAgents"; \
+	for label in $(LEGACY_WAKE_LABEL) $(LEGACY_BOOT_LABEL); do \
+		old="$$h/Library/LaunchAgents/$$label.plist"; \
+		launchctl bootout "gui/$$uid" "$$old" 2>/dev/null || true; \
+		rm -f "$$old"; \
+	done; \
 	printf '%s\n' \
 		'<?xml version="1.0" encoding="UTF-8"?>' \
 		'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
 		'<plist version="1.0"><dict>' \
-		'<key>Label</key><string>$(1)</string>' \
+		'<key>Label</key><string>$(AGENT_LABEL)</string>' \
 		'<key>ProgramArguments</key><array>' \
-		"<string>$(FANS_BIN)</string><string>restore</string><string>$(2)</string></array>" \
-		'$(3)' \
+		"<string>$(FANS_BIN)</string><string>restore</string></array>" \
+		'<key>RunAtLoad</key><true/>' \
+		'<key>StartOnWake</key><true/>' \
+		'<key>ThrottleInterval</key><integer>120</integer>' \
+		'<key>StandardErrorPath</key><string>'"$$h"'/.config/mac-fans-cli/restore.err</string>' \
 		'</dict></plist>' > "$$agent"; \
 	launchctl bootout "gui/$$uid" "$$agent" 2>/dev/null || true; \
-	launchctl bootstrap "gui/$$uid" "$$agent"
-endef
-
-install-wake-agent:
-	$(call INSTALL_LAUNCH_AGENT,$(AGENT_WAKE_LABEL),wake,<key>StartOnWake</key><true/><key>ThrottleInterval</key><integer>30</integer>)
-	$(call INSTALL_LAUNCH_AGENT,$(AGENT_BOOT_LABEL),boot,<key>RunAtLoad</key><true/>)
-	@u="$$SUDO_USER"; \
-	if [ -z "$$u" ] || [ "$$u" = "root" ]; then u="$$USER"; fi; \
-	h=$$(eval echo ~$$u); \
-	uid=$$(id -u $$u); \
-	legacy="$$h/Library/LaunchAgents/$(LEGACY_AGENT_LABEL).plist"; \
-	launchctl bootout "gui/$$uid" "$$legacy" 2>/dev/null || true; \
-	rm -f "$$legacy"; \
-	echo "Installed wake and boot restore agents for $$u"
+	launchctl bootstrap "gui/$$uid" "$$agent"; \
+	if [ -d "$$h/.config/mac-fans-cli" ]; then chown -R "$$u" "$$h/.config/mac-fans-cli"; fi; \
+	echo "Installed restore agent for $$u"
 
 uninstall:
 	@u="$$SUDO_USER"; \
 	if [ -z "$$u" ] || [ "$$u" = "root" ]; then u="$$USER"; fi; \
 	h=$$(eval echo ~$$u); \
 	uid=$$(id -u $$u); \
-	for label in $(AGENT_WAKE_LABEL) $(AGENT_BOOT_LABEL) $(LEGACY_AGENT_LABEL); do \
+	for label in $(AGENT_LABEL) $(LEGACY_WAKE_LABEL) $(LEGACY_BOOT_LABEL); do \
 		agent="$$h/Library/LaunchAgents/$$label.plist"; \
 		launchctl bootout "gui/$$uid" "$$agent" 2>/dev/null || true; \
 		rm -f "$$agent"; \

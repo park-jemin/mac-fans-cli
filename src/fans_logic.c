@@ -90,6 +90,7 @@ static void fans_saved_clear_boot(fans_saved_t *out)
     out->has_boot = 0;
     out->boot_sec = 0;
     out->boot_usec = 0;
+    out->skip_wake_until = 0;
 }
 
 int fans_saved_parse_line(const char *line, fans_saved_t *out)
@@ -122,6 +123,39 @@ int fans_saved_parse_line(const char *line, fans_saved_t *out)
 
     out->rpm = rpm;
     return 1;
+}
+
+int fans_saved_parse_skip_wake_line(const char *line, fans_saved_t *out)
+{
+    char trimmed[64];
+
+    if (out == NULL || line == NULL) {
+        return 0;
+    }
+
+    if (saved_trim(line, trimmed, sizeof(trimmed)) == NULL || trimmed[0] == '\0') {
+        return 0;
+    }
+
+    if (strcmp(trimmed, "skip_wake=1") == 0) {
+        out->skip_wake_until = 1;
+        return 1;
+    }
+
+    if (sscanf(trimmed, "skip_wake_until=%ld", &out->skip_wake_until) == 1) {
+        return 1;
+    }
+
+    return 0;
+}
+
+int fans_saved_should_skip_wake(const fans_saved_t *saved, long now_sec)
+{
+    if (saved == NULL || saved->skip_wake_until <= 0) {
+        return 0;
+    }
+
+    return now_sec < saved->skip_wake_until;
 }
 
 int fans_saved_parse_boot_line(const char *line, fans_saved_t *out)

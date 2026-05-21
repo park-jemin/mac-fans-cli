@@ -8,17 +8,25 @@
 #define FANS_MAX_RPM 8000
 #define FANS_TARGET_TOLERANCE_RPM 25
 #define FANS_SAVED_AUTO (-1)
+#define FANS_BOOT_SKIP_WAKE_SEC 15
+#define FANS_WAKE_INITIAL_DELAY_SEC 8
+#define FANS_WAKE_RETRY_INTERVAL_SEC 12
+#define FANS_WAKE_RETRY_ROUNDS 6
+#define FANS_WAKE_STABILITY_SEC 15
 
 typedef struct {
     int rpm;
     int has_boot;
     long boot_sec;
     long boot_usec;
+    long skip_wake_until;
 } fans_saved_t;
 
 int fans_parse_int(const char *text, int *out);
 int fans_saved_parse_line(const char *line, fans_saved_t *out);
 int fans_saved_parse_boot_line(const char *line, fans_saved_t *out);
+int fans_saved_parse_skip_wake_line(const char *line, fans_saved_t *out);
+int fans_saved_should_skip_wake(const fans_saved_t *saved, long now_sec);
 int fans_saved_format_line(const fans_saved_t *saved, char *buf, size_t buflen);
 int fans_saved_format_boot_line(const fans_saved_t *saved, char *buf, size_t buflen);
 int fans_saved_boot_changed(const fans_saved_t *saved, long boot_sec, long boot_usec);
