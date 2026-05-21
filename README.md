@@ -78,9 +78,11 @@ Set one fan:
 fans set 0 3500
 ```
 
-Restore automatic control:
+Return to default (automatic control and clear saved wake RPM):
 
 ```bash
+fans reset
+# same as:
 fans auto-all
 fans auto 0
 ```
@@ -122,8 +124,8 @@ make hardware-test RPM=3500 KEEP_FORCED=1
 
 - Use a reasonable RPM within your hardware limits.
 - The CLI rejects values below `500` and above `8000` RPM.
-- `fans auto-all` returns fan mode to system control.
-- After manual tests, run `fans auto-all` if you do not want to keep a fixed RPM.
+- `fans reset` (or `fans auto-all`) returns fan mode to system control and clears saved wake settings.
+- After manual tests, run `fans reset` if you do not want to keep a fixed RPM.
 - If a target write does not read back within tolerance, the command exits non-zero.
 
 ## License

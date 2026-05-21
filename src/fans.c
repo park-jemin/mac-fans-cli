@@ -630,7 +630,8 @@ void fans_usage(const char *prog)
     printf("  %s <RPM>                    Set all detected fans to RPM\n", prog);
     printf("  %s set-all <RPM>            Set all detected fans to RPM\n", prog);
     printf("  %s set <FAN#> <RPM>         Set one fan target speed\n", prog);
-    printf("  %s auto-all                 Restore automatic mode for all fans\n", prog);
+    printf("  %s reset                    Return all fans to automatic (default)\n", prog);
+    printf("  %s auto-all                 Same as reset\n", prog);
     printf("  %s auto <FAN#>              Restore automatic mode for one fan\n", prog);
     printf("  %s read <KEY>               Read a raw SMC key\n", prog);
     printf("\nForced RPM from set-all is saved and re-applied after sleep (via make install).\n");

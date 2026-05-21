@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
                 status = 1;
             }
         }
-    } else if (strcmp(cmd, "auto-all") == 0) {
+    } else if (strcmp(cmd, "auto-all") == 0 || strcmp(cmd, "reset") == 0) {
         status = fans_set_all_auto(conn);
     } else if (strcmp(cmd, "auto") == 0) {
         int fan_num = 0;
